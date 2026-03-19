@@ -161,6 +161,10 @@ module.exports = {
                 catch (e) {
                     Client.client.log(Client.client.intlGet(null, 'errorCap'),
                         Client.client.intlGet(null, 'couldNotFindMessage', { message: messageId }), 'error');
+                    if (e.code === 10008) {
+                        return undefined;
+                    }
+                    throw e;
                 }
             }
         }

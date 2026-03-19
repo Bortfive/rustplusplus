@@ -765,7 +765,7 @@ module.exports = async (client, interaction) => {
       return;
     }
 
-    interaction.deferUpdate();
+    await interaction.reply({ content: `✅ Created in <#${instance.channelId.trackers}>`, ephemeral: true });
 
     /* Find an available tracker id */
     const trackerId = client.findAvailableTrackerId(guildId);
@@ -794,7 +794,7 @@ module.exports = async (client, interaction) => {
       return;
     }
 
-    interaction.deferUpdate();
+    await interaction.reply({ content: `✅ Created in <#${instance.channelId.switchGroups}>`, ephemeral: true });
 
     const groupId = client.findAvailableGroupId(guildId, ids.serverId);
 

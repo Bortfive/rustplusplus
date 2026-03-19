@@ -47,13 +47,8 @@ module.exports = {
         ? await DiscordTools.getMessageById(guildId, channelId, messageId)
         : undefined;
 
-    let editedMessage;
     if (message !== undefined) {
-      editedMessage = await Client.client.messageEdit(message, content);
-    }
-
-    if (editedMessage !== undefined) {
-      return editedMessage;
+      return await Client.client.messageEdit(message, content);
     }
 
     const channel = DiscordTools.getTextChannelById(guildId, channelId);

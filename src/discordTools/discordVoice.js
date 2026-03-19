@@ -34,6 +34,7 @@ const Actors = require("../staticFiles/actors.json");
 const Client = require("../../index.ts");
 
 const voiceLocks = new Map();
+const alarmCooldowns = new Map();
 
 module.exports = {
   sendDiscordVoiceMessage: async function (guildId, text, alarmName = null) {
@@ -46,6 +47,20 @@ module.exports = {
         "info",
       );
       return;
+    }
+
+    if (alarmName) {
+      const cooldownKey = `${guildId}-${alarmName}`;
+      const lastPlayed = alarmCooldowns.get(cooldownKey);
+      if (lastPlayed && Date.now() - lastPlayed < 10 * 60 * 1000) {
+        Client.client.log(
+          "Debug",
+          `Alarm ${alarmName} is on cooldown for guild ${guildId}, skipping voice message`,
+          "info",
+        );
+        return;
+      }
+      alarmCooldowns.set(cooldownKey, Date.now());
     }
 
     // Basic concurrency lock per guild
