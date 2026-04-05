@@ -1,6 +1,7 @@
 /*
     Copyright (C) 2022 Alexander Emanuelsson (alexemanuelol)
-
+    Copyright (C) 2026 FaiThiX
+    
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -100,49 +101,57 @@ async function messageBroadcastTeamMessage(rustplus, client, message) {
   tempMessage = tempMessage.replace(/^<color.+?<\/color>/g, ""); /* Unknown */
   message.broadcast.teamMessage.message.message = tempMessage;
 
-  if (instance.blacklist["steamIds"].includes(`${steamId}`)) {
+    const inGameCommandAccessMode = getInGameCommandAccessMode(rustplus);
+    if (
+      steamId !== rustplus.playerId &&
+      shouldIgnoreInGameCommand(instance, steamId, inGameCommandAccessMode)
+    ) {
+      const strId =
+        inGameCommandAccessMode === "whitelist"
+          ? "userNotPartOfWhitelistInGame"
+          : "userPartOfBlacklistInGame";
+      rustplus.log(
+        client.intlGet(null, "infoCap"),
+        client.intlGet(null, strId, {
+          user: `${message.broadcast.teamMessage.message.name} (${steamId})`,
+          message: message.broadcast.teamMessage.message.message,
+        }),
+      );
+      TeamChatHandler(rustplus, client, message.broadcast.teamMessage.message);
+      return;
+    }
+
+    if (
+      rustplus.messagesSentByBot.includes(
+        message.broadcast.teamMessage.message.message,
+      )
+    ) {
+      /* Remove message from messagesSendByBot */
+      for (let i = rustplus.messagesSentByBot.length - 1; i >= 0; i--) {
+        if (
+          rustplus.messagesSentByBot[i] ===
+          message.broadcast.teamMessage.message.message
+        ) {
+          rustplus.messagesSentByBot.splice(i, 1);
+        }
+      }
+      return;
+    }
+
+    const isCommand = await CommandHandler.inGameCommandHandler(
+      rustplus,
+      client,
+      message,
+    );
+    if (isCommand) return;
+
     rustplus.log(
       client.intlGet(null, "infoCap"),
-      client.intlGet(null, `userPartOfBlacklistInGame`, {
-        user: `${message.broadcast.teamMessage.message.name} (${steamId})`,
+      client.intlGet(null, `logInGameMessage`, {
         message: message.broadcast.teamMessage.message.message,
+        user: `${message.broadcast.teamMessage.message.name} (${steamId})`,
       }),
     );
-    TeamChatHandler(rustplus, client, message.broadcast.teamMessage.message);
-    return;
-  }
-
-  if (
-    rustplus.messagesSentByBot.includes(
-      message.broadcast.teamMessage.message.message,
-    )
-  ) {
-    /* Remove message from messagesSendByBot */
-    for (let i = rustplus.messagesSentByBot.length - 1; i >= 0; i--) {
-      if (
-        rustplus.messagesSentByBot[i] ===
-        message.broadcast.teamMessage.message.message
-      ) {
-        rustplus.messagesSentByBot.splice(i, 1);
-      }
-    }
-    return;
-  }
-
-  const isCommand = await CommandHandler.inGameCommandHandler(
-    rustplus,
-    client,
-    message,
-  );
-  if (isCommand) return;
-
-  rustplus.log(
-    client.intlGet(null, "infoCap"),
-    client.intlGet(null, `logInGameMessage`, {
-      message: message.broadcast.teamMessage.message.message,
-      user: `${message.broadcast.teamMessage.message.name} (${steamId})`,
-    }),
-  );
 
   TeamChatHandler(rustplus, client, message.broadcast.teamMessage.message);
 }
@@ -368,4 +377,23 @@ async function updateToolCupboard(rustplus, client, message) {
     rustplus.serverId,
     entityId,
   );
+}
+
+function getInGameCommandAccessMode(rustplus) {
+    const mode = `${rustplus.generalSettings.inGameCommandAccessMode || 'blacklist'}`.toLowerCase();
+    return mode === 'whitelist' ? 'whitelist' : 'blacklist';
+}
+
+function shouldIgnoreInGameCommand(instance, steamId, inGameCommandAccessMode) {
+    const steamIdStr = `${steamId}`;
+    const blacklistSteamIds = (instance.blacklist && Array.isArray(instance.blacklist['steamIds'])) ?
+        instance.blacklist['steamIds'] : [];
+
+    if (inGameCommandAccessMode === 'whitelist') {
+        const whitelistSteamIds = (instance.whitelist && Array.isArray(instance.whitelist['steamIds'])) ?
+            instance.whitelist['steamIds'] : [];
+        return !whitelistSteamIds.includes(steamIdStr);
+    }
+
+  return blacklistSteamIds.includes(steamIdStr);
 }
