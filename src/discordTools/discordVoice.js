@@ -52,7 +52,7 @@ module.exports = {
     if (alarmName) {
       const cooldownKey = `${guildId}-${alarmName}`;
       const lastPlayed = alarmCooldowns.get(cooldownKey);
-      if (lastPlayed && Date.now() - lastPlayed < 10 * 60 * 1000) {
+      if (lastPlayed && Date.now() - lastPlayed < 1 * 60 * 1000) {
         Client.client.log(
           "Debug",
           `Alarm ${alarmName} is on cooldown for guild ${guildId}, skipping voice message`,
