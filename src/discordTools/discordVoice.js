@@ -1,4 +1,4 @@
-/*
+﻿/*
     Copyright (C) 2022 Alexander Emanuelsson (alexemanuelol)
     Copyright (C) 2023 FaiThiX
 
@@ -18,7 +18,6 @@
     https://github.com/alexemanuelol/rustplusplus
 
 */
-<<<<<<< HEAD
 const {
   getVoiceConnection,
   createAudioPlayer,
@@ -36,13 +35,6 @@ const Client = require("../../index.ts");
 
 const voiceLocks = new Map();
 const alarmCooldowns = new Map();
-=======
-const { getVoiceConnection, createAudioPlayer, createAudioResource } = require('@discordjs/voice');
-const getStaticFilesStorage = require('../util/getStaticFilesStorage');
-const Client = require('../../index.ts');
->>>>>>> upstream/master
-
-const Actors = getStaticFilesStorage().getDatasetObject('actors');
 
 module.exports = {
   sendDiscordVoiceMessage: async function (guildId, text, alarmName = null) {
@@ -185,10 +177,6 @@ module.exports = {
 
       if (!resource) {
         const voice = await this.getVoice(guildId);
-<<<<<<< HEAD
-=======
-        const url = `https://cache-a.oddcast.com/tts/genC.php?EID=${voice.EID}&LID=${voice.LID}&VID=${voice.VID}&TXT=${encodeURIComponent(text)}&EXT=mp3`;
->>>>>>> upstream/master
 
         // Map existing voices to languages for Google TTS (fallback to 'es' if male/female mapping is weird)
         let lang = "es";
@@ -348,7 +336,6 @@ module.exports = {
           );
           if (connection) connection.destroy();
         }
-<<<<<<< HEAD
       } else {
         Client.client.log(
           "Error",
@@ -385,7 +372,3 @@ module.exports = {
     }
   },
 };
-=======
-    },
-}
->>>>>>> upstream/master
