@@ -30,8 +30,11 @@ const axios = require("axios");
 const googleTTS = require("google-tts-api");
 const fs = require("fs");
 const path = require("path");
-const Actors = require("../staticFiles/actors.json");
-const Client = require("../../index.ts");
+const getStaticFilesStorage = require('../util/getStaticFilesStorage');
+const Client = require('../../index.ts');
+
+const voiceLocks = new Map();
+const alarmCooldowns = new Map();
 
 const voiceLocks = new Map();
 const alarmCooldowns = new Map();
