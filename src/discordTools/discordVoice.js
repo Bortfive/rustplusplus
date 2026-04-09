@@ -30,11 +30,10 @@ const axios = require("axios");
 const googleTTS = require("google-tts-api");
 const fs = require("fs");
 const path = require("path");
-const getStaticFilesStorage = require('../util/getStaticFilesStorage');
-const Client = require('../../index.ts');
+const getStaticFilesStorage = require("../util/getStaticFilesStorage");
+const Client = require("../../index.ts");
 
-const voiceLocks = new Map();
-const alarmCooldowns = new Map();
+const Actors = getStaticFilesStorage().getDatasetObject("actors");
 
 const voiceLocks = new Map();
 const alarmCooldowns = new Map();
@@ -178,7 +177,7 @@ module.exports = {
         }
       }
 
-      if (!resource) {
+      if (!resource && alarmName) {
         const voice = await this.getVoice(guildId);
 
         // Map existing voices to languages for Google TTS (fallback to 'es' if male/female mapping is weird)

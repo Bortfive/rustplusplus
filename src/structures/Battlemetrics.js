@@ -19,9 +19,9 @@
 */
 
 const Axios = require("axios");
+const getStaticFilesStorage = require("../util/getStaticFilesStorage");
 
 const Client = require("../../index.ts");
-const RandomUsernames = require("../staticFiles/RandomUsernames.json");
 const Utils = (require = require("../util/utils.js"));
 
 const SERVER_LOG_SIZE = 1000;
@@ -521,7 +521,11 @@ class Battlemetrics {
 
     const parsed = this.#parseMostTimePlayedApiResponse(data);
     for (const player of parsed.players) {
-      if (!RandomUsernames.RandomUsernames.includes(player.name))
+      if (
+        !getStaticFilesStorage()
+          .getDatasetObject("RandomUsernames")
+          .RandomUsernames.includes(player.name)
+      )
         this.streamerMode = false;
     }
   }
@@ -707,7 +711,11 @@ class Battlemetrics {
 
         const name = Utils.removeInvisibleCharacters(entity.attributes.name);
 
-        if (!RandomUsernames.RandomUsernames.includes(name))
+        if (
+          !getStaticFilesStorage()
+            .getDatasetObject("RandomUsernames")
+            .RandomUsernames.includes(name)
+        )
           this.streamerMode = false;
 
         if (!this.players.hasOwnProperty(entity.id)) {

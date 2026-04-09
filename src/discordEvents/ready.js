@@ -18,65 +18,97 @@
 
 */
 
-const Discord = require('discord.js');
-const Path = require('path');
+const Discord = require("discord.js");
+const Path = require("path");
 
-const BattlemetricsHandler = require('../handlers/battlemetricsHandler.js');
-const Config = require('../../config');
+const BattlemetricsHandler = require("../handlers/battlemetricsHandler.js");
+const Config = require("../../config");
 
 module.exports = {
-    name: 'clientReady',
-    once: true,
-    async execute(client) {
-        for (const guild of client.guilds.cache) {
-            require('../util/CreateInstanceFile')(client, guild[1]);
-            require('../util/CreateCredentialsFile')(client, guild[1]);
-            client.fcmListenersLite[guild[0]] = new Object();
-        }
+  name: "ready",
+  once: true,
+  async execute(client) {
+    try {
+      console.log("Ready event fired! User:", client.user.tag);
+      console.log("Guilds cache size:", client.guilds.cache.size);
+      for (const guild of client.guilds.cache) {
+        require("../util/CreateInstanceFile")(client, guild[1]);
+        require("../util/CreateCredentialsFile")(client, guild[1]);
+        client.fcmListenersLite[guild[0]] = new Object();
+      }
 
-        client.loadGuildsIntl();
-        client.log(client.intlGet(null, 'infoCap'), client.intlGet(null, 'loggedInAs', {
-            name: client.user.tag
-        }));
+      client.loadGuildsIntl();
+      console.log("About to log logged in message");
+      client.log(
+        client.intlGet(null, "infoCap"),
+        client.intlGet(null, "loggedInAs", {
+          name: client.user.tag,
+        }),
+      );
+      console.log("Logged in message logged");
+    } catch (error) {
+      console.error("Error in ready event:", error);
+    }
 
-        try {
-            await client.user.setUsername(Config.discord.username);
-        }
-        catch (e) {
-            client.log(client.intlGet(null, 'warningCap'), client.intlGet(null, 'ignoreSetUsername'));
-        }
+    console.log("Setting username");
+    try {
+      await client.user.setUsername(Config.discord.username);
+    } catch (e) {
+      client.log(
+        client.intlGet(null, "warningCap"),
+        client.intlGet(null, "ignoreSetUsername"),
+      );
+    }
+    console.log("Username set");
 
-        try {
-            await client.user.setAvatar(Path.join(__dirname, '..', 'resources/images/rustplusplus_logo.png'));
-        }
-        catch (e) {
-            client.log(client.intlGet(null, 'warningCap'), client.intlGet(null, 'ignoreSetAvatar'));
-        }
+    console.log("Setting avatar");
+    try {
+      await client.user.setAvatar(
+        Path.join(__dirname, "..", "resources/images/rustplusplus_logo.png"),
+      );
+    } catch (e) {
+      client.log(
+        client.intlGet(null, "warningCap"),
+        client.intlGet(null, "ignoreSetAvatar"),
+      );
+    }
+    console.log("Avatar set");
 
-        client.user.setPresence({
-            activities: [{ name: '/help', type: Discord.ActivityType.Listening }],
-            status: 'online'
-        });
+    console.log("Setting presence");
+    client.user.setPresence({
+      activities: [{ name: "/help", type: Discord.ActivityType.Listening }],
+      status: "online",
+    });
+    console.log("Presence set");
 
-        client.uptimeBot = new Date();
+    client.uptimeBot = new Date();
+    console.log("Uptime set");
 
-        for (let guildArray of client.guilds.cache) {
-            const guild = guildArray[1];
+    console.log("Starting guild setup loop");
+    for (let guildArray of client.guilds.cache) {
+      const guild = guildArray[1];
 
-            try {
-                await guild.members.me.setNickname(Config.discord.username);
-            }
-            catch (e) {
-                client.log(client.intlGet(null, 'warningCap'), client.intlGet(null, 'ignoreSetNickname'));
-            }
-            await client.syncCredentialsWithUsers(guild);
-            await client.setupGuild(guild);
-        }
+      try {
+        await guild.members.me.setNickname(Config.discord.username);
+      } catch (e) {
+        client.log(
+          client.intlGet(null, "warningCap"),
+          client.intlGet(null, "ignoreSetNickname"),
+        );
+      }
+      await client.syncCredentialsWithUsers(guild);
+      await client.setupGuild(guild);
+    }
 
-        await client.updateBattlemetricsInstances();
-        BattlemetricsHandler.handler(client, true);
-        client.battlemetricsIntervalId = setInterval(BattlemetricsHandler.handler, 60000, client, false);
+    await client.updateBattlemetricsInstances();
+    BattlemetricsHandler.handler(client, true);
+    client.battlemetricsIntervalId = setInterval(
+      BattlemetricsHandler.handler,
+      60000,
+      client,
+      false,
+    );
 
-        client.createRustplusInstancesFromConfig();
-    },
+    client.createRustplusInstancesFromConfig();
+  },
 };
