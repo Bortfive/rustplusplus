@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l /c/Users/josef/Documents/GitHub/rustplusplus/src/structures/*.js)",
+      "Bash(grep -n \"alarmVoiceEnabled\\\\|generalSettings\" /c/Users/josef/Documents/GitHub/rustplusplus/src/templates/*.json)",
+      "Bash(python3:*)",
+      "Bash(node -e \"const d=require\\('./instances/927624007577141278.json'\\); console.log\\(JSON.stringify\\(d.generalSettings, null, 2\\)\\)\")",
+      "Bash(node:*)",
+      "Bash(grep -v \"//\")",
+      "Bash(npm show:*)",
+      "Bash(npm pack:*)",
+      "Read(//c/tmp/**)",
+      "Bash(tar -xzf discordjs-voice-0.19.2.tgz)",
+      "Bash(npm install:*)"
+    ]
+  }
+}

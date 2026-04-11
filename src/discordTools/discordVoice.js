@@ -1,4 +1,4 @@
-﻿/*
+/*
     Copyright (C) 2022 Alexander Emanuelsson (alexemanuelol)
     Copyright (C) 2023 FaiThiX
 
@@ -38,312 +38,193 @@ const Actors = getStaticFilesStorage().getDatasetObject("actors");
 const voiceLocks = new Map();
 const alarmCooldowns = new Map();
 
+const GUILD_ID = "927624007577141278";
+const ALLOWED_CHANNEL_IDS = [
+  "927624007577141283",
+  "1404237888107053156",
+  "927624007577141284",
+  "1278075681988939887",
+  "1278075754722103426",
+  "1377671741454946324",
+];
+
+/**
+ * Finds the most populated allowed voice channel.
+ * Returns the channel object or null if no users are present.
+ */
+async function findBestChannel(guildId) {
+  const guild = await Client.client.guilds.fetch(guildId);
+  let bestChannel = null;
+  let maxUsers = 0;
+
+  for (const channelId of ALLOWED_CHANNEL_IDS) {
+    const channel = guild.channels.cache.get(channelId);
+    if (channel && channel.isVoiceBased() && channel.members.size > maxUsers) {
+      bestChannel = channel;
+      maxUsers = channel.members.size;
+    }
+  }
+
+  return bestChannel;
+}
+
 module.exports = {
   sendDiscordVoiceMessage: async function (guildId, text, alarmName = null) {
-    // Check if alarm voice is enabled in settings
-    const instance = Client.client.getInstance(guildId);
-    if (!instance || !instance.generalSettings.alarmVoiceEnabled) {
-      Client.client.log(
-        "Debug",
-        `Alarm voice disabled in settings for guild ${guildId}, skipping voice message`,
-        "info",
-      );
+    // Only execute for the specific guild
+    if (guildId !== GUILD_ID) {
       return;
     }
 
+    // Check if alarm voice is enabled in settings
+    const instance = Client.client.getInstance(guildId);
+    if (!instance || !instance.generalSettings.alarmVoiceEnabled) {
+      return;
+    }
+
+    // Per-alarm cooldown: 1 minute
     if (alarmName) {
       const cooldownKey = `${guildId}-${alarmName}`;
       const lastPlayed = alarmCooldowns.get(cooldownKey);
-      if (lastPlayed && Date.now() - lastPlayed < 1 * 60 * 1000) {
-        Client.client.log(
-          "Debug",
-          `Alarm ${alarmName} is on cooldown for guild ${guildId}, skipping voice message`,
-          "info",
-        );
+      if (lastPlayed && Date.now() - lastPlayed < 60 * 1000) {
+        Client.client.log("Debug", `Alarm "${alarmName}" is on cooldown, skipping`, "info");
         return;
       }
       alarmCooldowns.set(cooldownKey, Date.now());
     }
 
-    // Basic concurrency lock per guild
+    // Concurrency lock: wait for any in-progress voice message to finish first
     if (voiceLocks.has(guildId)) {
-      Client.client.log(
-        "Debug",
-        `Voice message for guild ${guildId} is already in progress, waiting...`,
-        "info",
-      );
       try {
         await voiceLocks.get(guildId);
-      } catch (e) {
-        /* Ignore previous lock errors */
-      }
+      } catch { /* ignore previous lock errors */ }
     }
 
     const execute = async () => {
-      let connection = getVoiceConnection(guildId);
-      let targetChannelId = null;
+      // --- Step 1: Find the target channel ---
+      let bestChannel;
+      try {
+        bestChannel = await findBestChannel(guildId);
+      } catch (err) {
+        Client.client.log("Error", `Failed to fetch guild channels: ${err}`, "error");
+        return;
+      }
 
-      // If connection exists but is disconnected or destroyed, clean it up
-      if (
-        connection &&
-        (connection.state.status === VoiceConnectionStatus.Disconnected ||
-          connection.state.status === VoiceConnectionStatus.Destroyed)
-      ) {
+      if (!bestChannel) {
+        Client.client.log("Debug", `No users in any allowed voice channel, skipping`, "info");
+        return;
+      }
+
+      // --- Step 2: Destroy any existing connection ---
+      const existingConnection = getVoiceConnection(guildId);
+      if (existingConnection) {
+        try { existingConnection.destroy(); } catch { /* ignore */ }
+      }
+
+      // --- Step 3: Join the voice channel ---
+      Client.client.log(
+        "Debug",
+        `Joining voice channel "${bestChannel.name}" (${bestChannel.members.size} users)`,
+        "info",
+      );
+
+      const connection = joinVoiceChannel({
+        channelId: bestChannel.id,
+        guildId: guildId,
+        adapterCreator: bestChannel.guild.voiceAdapterCreator,
+      });
+
+      connection.on("error", (error) => {
+        Client.client.log("Error", `Voice connection error: ${error.message}`, "error");
+      });
+
+      // --- Step 4: Wait for Ready ---
+      try {
+        await entersState(connection, VoiceConnectionStatus.Ready, 15_000);
+      } catch (err) {
         Client.client.log(
-          "Debug",
-          `Cleaning up stale voice connection in state: ${connection.state.status}`,
-          "info",
+          "Error",
+          `Voice connection did not reach Ready state (state: "${connection.state.status}"): ${err.message}`,
+          "error",
         );
-        connection.destroy();
-        connection = null;
+        try { connection.destroy(); } catch { /* ignore */ }
+        return;
       }
 
-      // Custom logic for the specific guild
-      if (!connection && guildId === "927624007577141278") {
-        try {
-          const guild = await Client.client.guilds.fetch(guildId);
-          const allowedChannelIds = [
-            "927624007577141283",
-            "1404237888107053156",
-            "927624007577141284",
-            "1278075681988939887",
-            "1278075754722103426",
-            "1377671741454946324",
-          ];
-          let mostPopulatedChannel = null;
-          let maxUsers = 0;
+      Client.client.log("Debug", `Voice connection is Ready`, "info");
 
-          for (const channelId of allowedChannelIds) {
-            const channel = guild.channels.cache.get(channelId);
-            if (
-              channel &&
-              channel.isVoiceBased() &&
-              channel.members.size > maxUsers
-            ) {
-              mostPopulatedChannel = channel;
-              maxUsers = channel.members.size;
-            }
-          }
-
-          if (mostPopulatedChannel) {
-            targetChannelId = mostPopulatedChannel.id;
-            connection = joinVoiceChannel({
-              channelId: targetChannelId,
-              guildId: guildId,
-              adapterCreator: guild.voiceAdapterCreator,
-              selfDeaf: true,
-              selfMute: false,
-            });
-          }
-        } catch (error) {
-          Client.client.log(
-            "Error",
-            `Failed to join channel for custom alarm: ${error}`,
-            "error",
-          );
-        }
-      }
-
+      // --- Step 5: Build audio resource ---
       let resource;
 
-      // Check if we should play a local file based on keywords in the alarm name
       if (alarmName) {
-        const lowerName = alarmName.toLowerCase();
-        let fileNameToPlay = null;
+        const lower = alarmName.toLowerCase();
+        let fileName = null;
+        if (lower.includes("launch")) fileName = "launch.mp3";
+        else if (lower.includes("main")) fileName = "main.mp3";
 
-        if (lowerName.includes("launch")) {
-          fileNameToPlay = "launch.mp3";
-        } else if (lowerName.includes("main")) {
-          fileNameToPlay = "main.mp3";
-        }
-
-        if (fileNameToPlay) {
-          const audioPath = path.join(
-            __dirname,
-            "..",
-            "..",
-            "audio",
-            fileNameToPlay,
-          );
-
+        if (fileName) {
+          const audioPath = path.join(__dirname, "..", "..", "audio", fileName);
           if (fs.existsSync(audioPath)) {
-            Client.client.log(
-              "Debug",
-              `Found local audio file for keyword in ${alarmName} at ${audioPath}`,
-              "info",
-            );
-            resource = createAudioResource(audioPath);
+            try {
+              Client.client.log("Debug", `Playing local file: ${fileName}`, "info");
+              resource = createAudioResource(audioPath);
+            } catch (e) {
+              Client.client.log("Error", `Failed to create resource for ${fileName}: ${e}`, "error");
+            }
           }
         }
       }
 
-      if (!resource && alarmName) {
-        const voice = await this.getVoice(guildId);
-
-        // Map existing voices to languages for Google TTS (fallback to 'es' if male/female mapping is weird)
-        let lang = "es";
-
+      if (!resource) {
         let url;
         try {
           url = googleTTS.getAudioUrl(text, {
-            lang: lang,
+            lang: "es",
             slow: false,
             host: "https://translate.google.com",
           });
         } catch (e) {
-          Client.client.log(
-            "Error",
-            `Google TTS URL generation failed: ${e}`,
-            "error",
-          );
+          Client.client.log("Error", `Google TTS URL generation failed: ${e}`, "error");
+          try { connection.destroy(); } catch { /* ignore */ }
           return;
         }
 
-        Client.client.log(
-          "Debug",
-          `Attempting to play audio from Google TTS API. URL: ${url}`,
-          "info",
-        );
-
         try {
-          // Use axios to fetch the stream directly to ensure we don't get blocked by the API
           const response = await axios({
             method: "get",
             url: url,
             responseType: "stream",
             headers: {
               "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
             },
           });
           resource = createAudioResource(response.data);
         } catch (e) {
-          Client.client.log(
-            "Error",
-            `Failed to fetch TTS audio stream: ${e}`,
-            "error",
-          );
+          Client.client.log("Error", `Failed to fetch TTS audio: ${e}`, "error");
+          try { connection.destroy(); } catch { /* ignore */ }
           return;
         }
       }
 
-      if (connection && resource) {
-        try {
-          // Add state change logging for the connection itself
-          if (!connection.listenerCount("stateChange")) {
-            connection.on("stateChange", (oldState, newState) => {
-              Client.client.log(
-                "Debug",
-                `Voice connection transitioned from ${oldState.status} to ${newState.status}`,
-                "info",
-              );
-            });
-          }
+      // --- Step 6: Play ---
+      try {
+        const player = createAudioPlayer();
 
-          Client.client.log(
-            "Debug",
-            `Waiting for VoiceConnectionStatus.Ready...`,
-            "info",
-          );
+        player.on("error", (error) => {
+          Client.client.log("Error", `Audio player error: ${error.message}`, "error");
+        });
 
-          const player = createAudioPlayer();
+        player.on("stateChange", (oldState, newState) => {
+          Client.client.log("Debug", `Player: ${oldState.status} → ${newState.status}`, "info");
+        });
 
-          player.on("error", (error) => {
-            Client.client.log(
-              "Error",
-              `Audio Player Error: ${error.message}`,
-              "error",
-            );
-            console.error("Audio Player Error:", error);
-          });
-
-          player.on("stateChange", (oldState, newState) => {
-            Client.client.log(
-              "Debug",
-              `Audio player transitioned from ${oldState.status} to ${newState.status}`,
-              "info",
-            );
-          });
-
-          let connectionReady = false;
-          let retries = 0;
-          const maxRetries = 2;
-
-          while (!connectionReady && retries <= maxRetries) {
-            try {
-              // Increased timeout from 30s to 60s for Raspberry Pi compatibility
-              await entersState(connection, VoiceConnectionStatus.Ready, 60000);
-              Client.client.log("Debug", `Connection is ready!`, "info");
-              connectionReady = true;
-            } catch (error) {
-              retries++;
-              if (retries <= maxRetries) {
-                Client.client.log(
-                  "Debug",
-                  `Voice connection attempt ${retries} failed, retrying... Error: ${error.message}`,
-                  "info",
-                );
-                // Wait a bit before retrying
-                await new Promise((resolve) => setTimeout(resolve, 2000));
-                // Reconnect with saved channel ID
-                try {
-                  connection.destroy();
-                  const guild = await Client.client.guilds.fetch(guildId);
-                  const channelId =
-                    targetChannelId || connection.joinConfig?.channelId;
-
-                  if (!channelId) {
-                    Client.client.log(
-                      "Error",
-                      `Cannot retry: no channel ID available for reconnection`,
-                      "error",
-                    );
-                    break;
-                  }
-
-                  connection = joinVoiceChannel({
-                    channelId: channelId,
-                    guildId: guildId,
-                    adapterCreator: guild.voiceAdapterCreator,
-                    selfDeaf: true,
-                    selfMute: false,
-                  });
-                } catch (e) {
-                  Client.client.log(
-                    "Error",
-                    `Failed to reconnect voice channel: ${e.message}`,
-                    "error",
-                  );
-                }
-              } else {
-                Client.client.log(
-                  "Error",
-                  `Voice connection failed to reach Ready state within 60 seconds after ${maxRetries} retries: ${error.message}`,
-                  "error",
-                );
-                connection.destroy();
-                return;
-              }
-            }
-          }
-
-          connection.subscribe(player);
-          player.play(resource);
-          Client.client.log("Debug", `Resource played!`, "info");
-        } catch (error) {
-          Client.client.log(
-            "Error",
-            `Unexpected error playing audio: ${error}`,
-            "error",
-          );
-          if (connection) connection.destroy();
-        }
-      } else {
-        Client.client.log(
-          "Error",
-          `Could not play audio because voice connection or resource is missing.`,
-          "error",
-        );
+        connection.subscribe(player);
+        player.play(resource);
+        Client.client.log("Debug", `Audio playback started`, "info");
+      } catch (error) {
+        Client.client.log("Error", `Failed to play audio: ${error}`, "error");
+        try { connection.destroy(); } catch { /* ignore */ }
       }
     };
 
@@ -364,13 +245,9 @@ module.exports = {
     const gender = instance.generalSettings.voiceGender;
     const language = instance.generalSettings.language;
 
-    if (
-      Actors[language]?.[gender] === null ||
-      Actors[language]?.[gender] === undefined
-    ) {
+    if (Actors[language]?.[gender] == null) {
       return Actors[language]?.[gender === "male" ? "female" : "male"];
-    } else {
-      return Actors[language]?.[gender];
     }
+    return Actors[language]?.[gender];
   },
 };
