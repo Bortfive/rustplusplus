@@ -48,6 +48,7 @@ class RustPlus extends RustPlusLib {
         super(serverIp, appPort, steamId, playerToken);
 
         this.serverId = `${this.server}-${this.port}`;
+        this.instanceId = Math.random().toString(36).substr(2, 6);
         this.guildId = guildId;
         this.runtimeDataStorage = getRuntimeDataStorage();
         this.persistentRuntimeStateRestored = false;

@@ -45,6 +45,7 @@ module.exports = {
         }
 
         /* Stop current tasks */
+        rustplus.isOperational = false;
         clearInterval(rustplus.pollingTaskId);
         clearInterval(rustplus.tokensReplenishTaskId);
         clearTimeout(rustplus.inGameChatTimeout);
