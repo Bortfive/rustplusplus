@@ -122,6 +122,15 @@ class RustPlus extends RustPlusLib {
     loadRustPlusEvents() {
         const eventFiles = Fs.readdirSync(
             Path.join(__dirname, '..', 'rustplusEvents')).filter(file => file.endsWith('.js'));
+
+        /* Guard against double-registration (e.g. reconnect race conditions) */
+        if (this.listenerCount('message') > 0) {
+            const stack = new Error().stack;
+            /* Use console.error so it appears in pm2 logs --err regardless of logger state */
+            console.error(`[loadRustPlusEvents] DOUBLE CALL detected on serverId=${this.serverId}. Stack:\n${stack}`);
+            this.removeAllListeners();
+        }
+
         for (const file of eventFiles) {
             const event = require(`../rustplusEvents/${file}`);
             this.on(event.name, (...args) => event.execute(this, Client.client, ...args));
@@ -560,7 +569,7 @@ class RustPlus extends RustPlusLib {
     }
 
     updateBotMessages(message) {
-        if (this.messagesSentByBot === Constants.BOT_MESSAGE_HISTORY_LIMIT) {
+        if (this.messagesSentByBot.length === Constants.BOT_MESSAGE_HISTORY_LIMIT) {
             this.messagesSentByBot.pop();
         }
         this.messagesSentByBot.unshift(message);

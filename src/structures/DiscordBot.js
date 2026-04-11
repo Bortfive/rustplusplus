@@ -362,6 +362,18 @@ class DiscordBot extends Discord.Client {
   }
 
   createRustplusInstance(guildId, serverIp, appPort, steamId, playerToken) {
+    /* Cancel any pending reconnect timer */
+    if (this.rustplusReconnectTimers[guildId]) {
+      clearTimeout(this.rustplusReconnectTimers[guildId]);
+      this.rustplusReconnectTimers[guildId] = null;
+    }
+
+    /* Disconnect any existing instance to avoid orphaned connections */
+    if (this.rustplusInstances[guildId]) {
+      this.rustplusInstances[guildId].isDeleted = true;
+      this.rustplusInstances[guildId].disconnect();
+    }
+
     let rustplus = new RustPlus(
       guildId,
       serverIp,
