@@ -48,7 +48,6 @@ class RustPlus extends RustPlusLib {
         super(serverIp, appPort, steamId, playerToken);
 
         this.serverId = `${this.server}-${this.port}`;
-        this.instanceId = Math.random().toString(36).substr(2, 6);
         this.guildId = guildId;
         this.runtimeDataStorage = getRuntimeDataStorage();
         this.persistentRuntimeStateRestored = false;
@@ -125,11 +124,6 @@ class RustPlus extends RustPlusLib {
            regardless of how many times this method is called. */
         this.removeAllListeners();
 
-        /* Log every call with a short stack so we can see the caller in pm2 logs */
-        const caller = new Error().stack.split('\n').slice(1, 4)
-            .map(l => l.trim()).join(' | ');
-        console.log(`[loadRustPlusEvents] iid=${this.instanceId} serverId=${this.serverId} | ${caller}`);
-
         const eventFiles = Fs.readdirSync(
             Path.join(__dirname, '..', 'rustplusEvents')).filter(file => file.endsWith('.js'));
 
@@ -137,8 +131,6 @@ class RustPlus extends RustPlusLib {
             const event = require(`../rustplusEvents/${file}`);
             this.on(event.name, (...args) => event.execute(this, Client.client, ...args));
         }
-
-        console.log(`[loadRustPlusEvents] DONE iid=${this.instanceId} lc_msg=${this.listenerCount('message')} files=[${eventFiles.join(',')}]`);
     }
 
     loadMarkers() {

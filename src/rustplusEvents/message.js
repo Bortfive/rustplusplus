@@ -36,11 +36,6 @@ module.exports = {
 
     if (!rustplus.isOperational) return;
 
-    if (message.hasOwnProperty("broadcast") && message.broadcast.hasOwnProperty("teamMessage")) {
-      const text = message.broadcast.teamMessage.message?.message;
-      rustplus.log("Debug", `[msg] iid=${rustplus.instanceId} lc=${rustplus.listenerCount("message")} text="${text}"`, "info");
-    }
-
     if (message.hasOwnProperty("response")) {
       messageResponse(rustplus, client, message);
     } else if (message.hasOwnProperty("broadcast")) {
