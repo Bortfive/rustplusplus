@@ -121,16 +121,17 @@ class RustPlus extends RustPlusLib {
     }
 
     loadRustPlusEvents() {
+        /* Always wipe before registering — guarantees exactly 1 listener per event
+           regardless of how many times this method is called. */
+        this.removeAllListeners();
+
+        /* Log every call with a short stack so we can see the caller in pm2 logs */
+        const caller = new Error().stack.split('\n').slice(1, 4)
+            .map(l => l.trim()).join(' | ');
+        console.log(`[loadRustPlusEvents] iid=${this.instanceId} serverId=${this.serverId} | ${caller}`);
+
         const eventFiles = Fs.readdirSync(
             Path.join(__dirname, '..', 'rustplusEvents')).filter(file => file.endsWith('.js'));
-
-        /* Guard against double-registration (e.g. reconnect race conditions) */
-        if (this.listenerCount('message') > 0) {
-            const stack = new Error().stack;
-            /* Use console.error so it appears in pm2 logs --err regardless of logger state */
-            console.error(`[loadRustPlusEvents] DOUBLE CALL detected on serverId=${this.serverId}. Stack:\n${stack}`);
-            this.removeAllListeners();
-        }
 
         for (const file of eventFiles) {
             const event = require(`../rustplusEvents/${file}`);
